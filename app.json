@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "GreenFeast Partner",
+    "slug": "greenfeast-partner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "gfpartner",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F9FBF7",
+    "ios": {
+      "bundleIdentifier": "com.greenfeast.partner",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "com.greenfeast.partner",
+      "softwareKeyboardLayoutMode": "resize",
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/adaptive-icon.png"
+      }
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/favicon.png",
+      "name": "GreenFeast Partner",
+      "shortName": "GF Partner",
+      "themeColor": "#1B5E20",
+      "backgroundColor": "#F9FBF7"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 140
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "GreenFeast Partner uses your location to put your nearest stop first."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "GreenFeast Partner uses the camera for a photo when you hand over a meal.",
+          "photosPermission": false,
+          "microphonePermission": false
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

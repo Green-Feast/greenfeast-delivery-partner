@@ -1,0 +1,31 @@
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native folders (made by `expo prebuild` / EAS — not kept in git)
+/android
+/ios
+
+# Signing keys
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.keystore
+
+# Env files
+.env*.local
+
+# Vercel
+.vercel
+
+# misc
+.DS_Store
+npm-debug.log*
+*.tsbuildinfo
