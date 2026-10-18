@@ -4,11 +4,13 @@ import { WifiOff } from 'lucide-react-native'
 import { useSession } from '@/lib/session'
 import type { Me } from '@/lib/api'
 import { C } from '@/lib/ui'
+import { useT } from '@/lib/i18n'
 import { Button } from './Button'
 
 // Screens that need a signed-in, active partner.
 export function RequirePartner({ children }: { children: (me: Me) => React.ReactNode }) {
   const { status, me, reload } = useSession()
+  const { t } = useT()
   if (status === 'loading') {
     return (
       <View style={s.center}>
@@ -20,8 +22,8 @@ export function RequirePartner({ children }: { children: (me: Me) => React.React
     return (
       <View style={s.center}>
         <WifiOff size={32} color={C.muted} />
-        <Text style={s.text}>No internet — check your connection.</Text>
-        <Button label="Try again" onPress={reload} style={{ marginTop: 16, alignSelf: 'stretch' }} />
+        <Text style={s.text}>{t('offline')}</Text>
+        <Button label={t('tryAgain')} onPress={reload} style={{ marginTop: 16, alignSelf: 'stretch' }} />
       </View>
     )
   }

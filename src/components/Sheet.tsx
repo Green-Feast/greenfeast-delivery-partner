@@ -2,18 +2,20 @@ import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleShee
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { X } from 'lucide-react-native'
 import { C } from '@/lib/ui'
+import { useT } from '@/lib/i18n'
 
 // A panel that slides up from the bottom (Delivered / Problem / Cash).
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   const insets = useSafeAreaInsets()
+  const { t } = useT()
   return (
     <Modal transparent animationType="slide" visible onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.wrap}>
-        <Pressable style={s.backdrop} onPress={onClose} accessibilityLabel="Close" />
+        <Pressable style={s.backdrop} onPress={onClose} accessibilityLabel={t('close')} />
         <View style={[s.sheet, { paddingBottom: insets.bottom + 20 }]}>
           <View style={s.head}>
             <Text style={s.title} numberOfLines={2}>{title}</Text>
-            <Pressable onPress={onClose} hitSlop={10} style={s.close} accessibilityLabel="Close">
+            <Pressable onPress={onClose} hitSlop={10} style={s.close} accessibilityLabel={t('close')}>
               <X size={20} color={C.muted} />
             </Pressable>
           </View>

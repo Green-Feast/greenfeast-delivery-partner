@@ -4,7 +4,8 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router'
 import * as Location from 'expo-location'
 import { Banknote, List, LocateFixed, Map as MapIcon, Route, Truck } from 'lucide-react-native'
 import { api, NOT_STARTED, stopState, type BatchDay, type Me, type Stop } from '@/lib/api'
-import { dayLabel, rupees, RUN_LABEL, SLOT_HOURS } from '@/lib/format'
+import { dayLabel, rupees, SLOT_HOURS } from '@/lib/format'
+import { useT, type Key } from '@/lib/i18n'
 import { nearestFirst, routeUrl } from '@/lib/maps'
 import { C, confirm } from '@/lib/ui'
 import { Header } from '@/components/Header'
@@ -29,6 +30,7 @@ function isDone(s: Stop) {
 
 function Batch({ me }: { me: Me }) {
   const { id, date } = useLocalSearchParams<{ id: string; date?: string }>()
+  const { t, count, error: tError, locale } = useT()
   const [data, setData] = useState<BatchDay | null | undefined>(undefined)
   const [error, setError] = useState('')
   const [refreshing, setRefreshing] = useState(false)
@@ -48,9 +50,9 @@ function Batch({ me }: { me: Me }) {
       setData(await api.batchStops(String(id), date ? String(date) : me.today))
       setError('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load the stops.')
+      setError(tError(e) || t('loadStopsFail'))
     }
-  }, [id, date, me.today])
+  }, [id, date, me.today, t, tError])
 
   useFocusEffect(
     useCallback(() => {
@@ -106,7 +108,7 @@ function Batch({ me }: { me: Me }) {
   function saveOrder(keys: string[]) {
     setOrder(keys)
     const addressIds = keys.map((k) => stops.find((s) => s.key === k)?.addressId).filter((x): x is string => !!x)
-    api.saveRoute(String(id), addressIds).catch((e) => show(false, e instanceof Error ? e.message : 'Could not save the order.'))
+    api.saveRoute(String(id), addressIds).catch((e) => show(false, tError(e) || t('saveOrderFail')))
   }
 
   function move(key: string, dir: -1 | 1) {
@@ -123,7 +125,7 @@ function Batch({ me }: { me: Me }) {
     try {
       const perm = await Location.requestForegroundPermissionsAsync()
       if (!perm.granted) {
-        show(false, 'Allow location for GreenFeast Partner to sort by distance.')
+        show(false, t('allowLocation'))
         return
       }
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
@@ -132,28 +134,24 @@ function Batch({ me }: { me: Me }) {
       const route = nearestFirst(pending, from)
       const noPin = pending.filter((s) => s.lat == null || s.lng == null).length
       saveOrder([...route, ...done].map((s) => s.key))
-      show(true, noPin > 0 ? `Sorted — ${noPin} stop${noPin === 1 ? ' has' : 's have'} no pin and went last.` : 'Sorted by distance from you.')
+      show(true, noPin > 0 ? t('sortedNoPin', { n: count('stop1', 'stopN', noPin) }) : t('sorted'))
     } catch {
-      show(false, "Couldn't get your location — try again outside.")
+      show(false, t('locationFail'))
     } finally {
       setLocating(false)
     }
   }
 
   async function startDelivery() {
-    const ok = await confirm(
-      'Start delivery?',
-      `${notStarted} meal${notStarted === 1 ? '' : 's'} will show "on the way" and the customers get a message.`,
-      'Start'
-    )
+    const ok = await confirm(t('startQ'), t('startMsg', { meals: count('meal1', 'mealN', notStarted) }), t('start'))
     if (!ok) return
     setStarting(true)
     try {
       const r = await api.startDelivery(String(id))
-      show(true, r.moved > 0 ? `${r.moved} meal${r.moved === 1 ? '' : 's'} on the way — customers have been told.` : 'Everything here is already on the way.')
+      show(true, r.moved > 0 ? t('startedToast', { meals: count('meal1', 'mealN', r.moved) }) : t('alreadyOnWay'))
       await load()
     } catch (e) {
-      show(false, e instanceof Error ? e.message : 'Could not start the delivery.')
+      show(false, tError(e) || t('startFail'))
     } finally {
       setStarting(false)
     }
@@ -170,8 +168,8 @@ function Batch({ me }: { me: Me }) {
   if (data === null) {
     return (
       <View style={{ flex: 1 }}>
-        <Header title="Batch not found" onBack={back} />
-        <Text style={s.empty}>This batch isn&apos;t assigned to you any more.</Text>
+        <Header title={t('batchNotFound')} onBack={back} />
+        <Text style={s.empty}>{t('notAssigned')}</Text>
       </View>
     )
   }
@@ -179,9 +177,9 @@ function Batch({ me }: { me: Me }) {
   const b = data?.batch
   const subtitle = b
     ? [
-        data!.date === data!.today ? 'Today' : dayLabel(data!.date),
-        `${b.slot === 'lunch' ? 'Lunch' : 'Dinner'} ${SLOT_HOURS[b.slot]}`,
-        b.time_window ? RUN_LABEL[b.time_window] ?? b.time_window : null,
+        data!.date === data!.today ? t('today') : dayLabel(data!.date, locale),
+        `${t(b.slot)} ${SLOT_HOURS[b.slot]}`,
+        b.time_window ? t(`run_${b.time_window}` as Key) : null,
       ]
         .filter(Boolean)
         .join(' · ')
@@ -189,7 +187,7 @@ function Batch({ me }: { me: Me }) {
 
   return (
     <View style={{ flex: 1 }}>
-      <Header title={b?.name.trim() ?? 'Loading…'} subtitle={subtitle} onBack={back} onRefresh={refresh} refreshing={refreshing} />
+      <Header title={b?.name.trim() ?? t('loading')} subtitle={subtitle} onBack={back} onRefresh={refresh} refreshing={refreshing} />
       <ScrollView
         ref={scroll}
         contentContainerStyle={s.page}
@@ -200,11 +198,11 @@ function Batch({ me }: { me: Me }) {
         {data ? (
           <>
             <View style={s.progressRow}>
-              <Text style={s.progressText}>{done.length}/{stops.length} stop{stops.length === 1 ? '' : 's'} done</Text>
+              <Text style={s.progressText}>{t('stopsDone', { done: done.length, total: stops.length })}</Text>
               {cashToCollect > 0 ? (
                 <View style={s.cashChip}>
                   <Banknote size={14} color={C.amber} />
-                  <Text style={s.cashChipText}>Collect {rupees(cashToCollect)}</Text>
+                  <Text style={s.cashChipText}>{t('collect', { amount: rupees(cashToCollect) })}</Text>
                 </View>
               ) : null}
             </View>
@@ -213,12 +211,12 @@ function Batch({ me }: { me: Me }) {
             </View>
 
             {!canAct ? (
-              <Text style={s.viewOnly}>Looking at {dayLabel(data.date)} — you can mark deliveries only on the day.</Text>
+              <Text style={s.viewOnly}>{t('viewOnly', { date: dayLabel(data.date, locale) })}</Text>
             ) : null}
 
             {canAct && notStarted > 0 ? (
               <Button
-                label={`Start delivery (${notStarted} meal${notStarted === 1 ? '' : 's'})`}
+                label={t('startDelivery', { meals: count('meal1', 'mealN', notStarted) })}
                 onPress={startDelivery}
                 busy={starting}
                 big
@@ -230,7 +228,7 @@ function Batch({ me }: { me: Me }) {
             {stops.length > 0 ? (
               <View style={s.tools}>
                 <View style={s.toggle}>
-                  {([['list', List, 'List'], ['map', MapIcon, 'Map']] as const).map(([v, Icon, label]) => (
+                  {([['list', List, t('list')], ['map', MapIcon, t('map')]] as const).map(([v, Icon, label]) => (
                     <Pressable key={v} onPress={() => setView(v)} style={[s.toggleBtn, view === v && s.toggleOn]}>
                       <Icon size={16} color={view === v ? '#fff' : C.muted} />
                       <Text style={[s.toggleText, view === v && { color: '#fff' }]}>{label}</Text>
@@ -239,7 +237,7 @@ function Batch({ me }: { me: Me }) {
                 </View>
                 {pending.length > 0 ? (
                   <Button
-                    label="Nearest"
+                    label={t('nearest')}
                     kind="outline"
                     onPress={sortByDistance}
                     busy={locating}
@@ -251,7 +249,7 @@ function Batch({ me }: { me: Me }) {
 
             {pending.length > 0 ? (
               <Button
-                label={`Open route in Google Maps${pending.length > 10 ? ' (next 10 stops)' : ''}`}
+                label={`${t('openRoute')}${pending.length > 10 ? t('next10') : ''}`}
                 kind="outline"
                 onPress={() => Linking.openURL(routeUrl(pending)).catch(() => {})}
                 icon={<Route size={16} color={C.green} />}
@@ -260,7 +258,7 @@ function Batch({ me }: { me: Me }) {
             ) : null}
 
             {stops.length === 0 ? (
-              <Text style={s.empty}>No deliveries in this batch {data.date === data.today ? 'today' : `on ${dayLabel(data.date)}`}.</Text>
+              <Text style={s.empty}>{t('noDeliveriesBatch')}</Text>
             ) : null}
 
             {view === 'map' && stops.length > 0 ? (
@@ -268,7 +266,7 @@ function Batch({ me }: { me: Me }) {
                 <RouteMap data={mapData} onPick={pick} />
                 {stops.length > mapData.stops.length ? (
                   <Text style={s.mapNote}>
-                    {stops.length - mapData.stops.length} stop{stops.length - mapData.stops.length === 1 ? ' has' : 's have'} no map pin — see the list.
+                    {t('noPin', { n: count('stop1', 'stopN', stops.length - mapData.stops.length) })}
                   </Text>
                 ) : null}
               </View>
@@ -289,7 +287,7 @@ function Batch({ me }: { me: Me }) {
                     />
                   </View>
                 ))}
-                {done.length > 0 ? <Text style={s.doneHead}>DONE</Text> : null}
+                {done.length > 0 ? <Text style={s.doneHead}>{t('doneHead')}</Text> : null}
                 {done.map((stop) => (
                   <View key={stop.key} onLayout={(e) => { positions.current[stop.key] = e.nativeEvent.layout.y }}>
                     <DoneRow stop={stop} canAct={canAct} onCash={() => setSheet({ kind: 'cash', stop })} />

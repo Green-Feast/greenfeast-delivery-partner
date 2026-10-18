@@ -3,6 +3,8 @@ import { AppState, Platform } from 'react-native'
 import { supabase } from './supabase'
 import { api, type Me } from './api'
 import { loginEmail } from './config'
+import type { Key } from './i18n'
+import { unregisterPush } from './push'
 
 // Who's signed in. A session alone isn't enough: partner_me() has to find an
 // active delivery partner behind it (the admin can switch a login off).
@@ -12,7 +14,8 @@ type Status = 'loading' | 'signed_out' | 'signed_in' | 'offline'
 type Session = {
   status: Status
   me: Me | null
-  signIn: (phone: string, password: string) => Promise<string | null>
+  // null on success, otherwise the message to show (an i18n key)
+  signIn: (phone: string, password: string) => Promise<Key | null>
   signOut: () => Promise<void>
   reload: () => Promise<void>
 }
@@ -70,15 +73,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = useCallback(async (phone: string, password: string) => {
     const digits = phone.replace(/\D/g, '').slice(-10)
-    if (digits.length !== 10 || !password) return 'Enter your 10-digit phone number and password.'
+    if (digits.length !== 10 || !password) return 'errEnterPhonePw'
     const { error } = await supabase.auth.signInWithPassword({ email: loginEmail(digits), password })
     if (error) {
-      return /fetch|network/i.test(error.message) ? 'No internet — check your connection and try again.' : 'Wrong phone number or password.'
+      return /fetch|network/i.test(error.message) ? 'errNoInternet' : 'errWrongLogin'
     }
     const m = await api.me().catch(() => null)
     if (!m) {
       await supabase.auth.signOut()
-      return 'Your login is switched off. Please call the GreenFeast office.'
+      return 'errLoginOff'
     }
     setMe(m)
     setStatus('signed_in')
@@ -86,6 +89,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signOut = useCallback(async () => {
+    // This phone stops getting this partner's pushes.
+    await unregisterPush()
     await supabase.auth.signOut({ scope: 'local' })
     setMe(null)
     setStatus('signed_out')

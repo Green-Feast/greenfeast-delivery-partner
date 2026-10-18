@@ -3,21 +3,27 @@ import { AppState, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View
 import { router, useFocusEffect } from 'expo-router'
 import { AlertTriangle, Banknote, CheckCircle2, ChevronRight, Clock } from 'lucide-react-native'
 import { api, type DayStats, type Me, type PartnerBatch, type Slot } from '@/lib/api'
-import { addDays, dayLabel, rupees, RUN_LABEL, SLOT_HOURS } from '@/lib/format'
+import { addDays, dayLabel, rupees, SLOT_HOURS } from '@/lib/format'
 import { useSession } from '@/lib/session'
-import { C, confirm } from '@/lib/ui'
+import { useT, type Key } from '@/lib/i18n'
+import { useBell } from '@/lib/notifications'
+import { C } from '@/lib/ui'
 import { Header } from '@/components/Header'
 import { RequirePartner } from '@/components/RequirePartner'
+import { MenuSheet } from '@/components/MenuSheet'
 
 export default function TodayRoute() {
   return <RequirePartner>{(me) => <Today me={me} />}</RequirePartner>
 }
 
 function Today({ me }: { me: Me }) {
-  const { signOut, reload } = useSession()
+  const { reload } = useSession()
+  const { t, error: tError, locale } = useT()
+  const bell = useBell()
   const [batches, setBatches] = useState<PartnerBatch[] | null>(null)
   const [error, setError] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+  const [menu, setMenu] = useState(false)
   const today = me.today
   const tomorrow = addDays(today, 1)
 
@@ -26,30 +32,31 @@ function Today({ me }: { me: Me }) {
       setBatches(await api.batches([today, tomorrow]))
       setError('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load your batches.')
+      setError(tError(e) || t('loadBatchesFail'))
     }
-  }, [today, tomorrow])
+  }, [today, tomorrow, t, tError])
 
   // Fresh whenever the screen is open: on arrival and every minute.
   useFocusEffect(
     useCallback(() => {
       load()
       reload()
+      bell.refresh()
       const id = setInterval(() => {
-        if (AppState.currentState === 'active') load()
+        if (AppState.currentState === 'active') {
+          load()
+          bell.refresh()
+        }
       }, 60_000)
       return () => clearInterval(id)
-    }, [load, reload])
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [load, reload, bell.refresh])
   )
 
   async function refresh() {
     setRefreshing(true)
-    await load()
+    await Promise.all([load(), bell.refresh()])
     setRefreshing(false)
-  }
-
-  async function handleSignOut() {
-    if (await confirm('Sign out?', 'You can sign in again with your phone number and password.', 'Sign out')) signOut()
   }
 
   const bySlot = (slot: Slot) => (batches ?? []).filter((b) => b.slot === slot)
@@ -58,25 +65,25 @@ function Today({ me }: { me: Me }) {
   return (
     <View style={{ flex: 1 }}>
       <Header
-        title={`Hi ${me.name.trim().split(/\s+/)[0]}`}
-        subtitle={`${dayLabel(today)}${me.is_test ? ' · TEST' : ''}`}
+        title={t('hi', { name: me.name.trim().split(/\s+/)[0] })}
+        subtitle={`${dayLabel(today, locale)}${me.is_test ? ' · TEST' : ''}`}
         onRefresh={refresh}
         refreshing={refreshing}
-        onSignOut={handleSignOut}
+        onBell={() => router.push('/notifications')}
+        unread={bell.unread}
+        onMenu={() => setMenu(true)}
       />
       <ScrollView contentContainerStyle={s.page} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
         {error ? <Text style={s.error}>{error}</Text> : null}
 
-        {batches && batches.length === 0 ? (
-          <Text style={s.empty}>No batches are assigned to you yet. Ask the office to add you to a batch.</Text>
-        ) : null}
+        {batches && batches.length === 0 ? <Text style={s.empty}>{t('noBatches')}</Text> : null}
 
         {(['lunch', 'dinner'] as const).map((slot) =>
           bySlot(slot).length === 0 ? null : (
             <View key={slot} style={s.section}>
               <View style={s.sectionHead}>
                 <Clock size={15} color={C.muted} />
-                <Text style={s.sectionTitle}>{slot === 'lunch' ? 'LUNCH' : 'DINNER'} · {SLOT_HOURS[slot]}</Text>
+                <Text style={s.sectionTitle}>{t(slot)} · {SLOT_HOURS[slot]}</Text>
               </View>
               {bySlot(slot).map((b) => (
                 <BatchCard key={b.id} batch={b} day={b.days[today]} onPress={() => router.push(`/batch/${b.id}`)} />
@@ -87,7 +94,7 @@ function Today({ me }: { me: Me }) {
 
         {tomorrowRows.length > 0 ? (
           <View style={s.section}>
-            <Text style={[s.sectionTitle, { marginBottom: 8 }]}>TOMORROW · {dayLabel(tomorrow).toUpperCase()}</Text>
+            <Text style={[s.sectionTitle, { marginBottom: 8 }]}>{t('tomorrow')} · {dayLabel(tomorrow, locale)}</Text>
             <View style={s.tomorrow}>
               {tomorrowRows.map((b, i) => (
                 <Pressable
@@ -96,10 +103,10 @@ function Today({ me }: { me: Me }) {
                   style={[s.tomorrowRow, i > 0 && { borderTopWidth: 1, borderTopColor: C.border }]}
                 >
                   <Text style={s.tomorrowName}>
-                    {b.name.trim()} <Text style={{ color: C.muted, fontWeight: '400' }}>· {b.slot === 'lunch' ? 'Lunch' : 'Dinner'}</Text>
+                    {b.name.trim()} <Text style={{ color: C.muted, fontWeight: '400' }}>· {t(b.slot)}</Text>
                   </Text>
                   <View style={s.rowEnd}>
-                    <Text style={{ color: C.muted }}>{b.days[tomorrow].stops} stop{b.days[tomorrow].stops === 1 ? '' : 's'}</Text>
+                    <Text style={{ color: C.muted }}>{b.days[tomorrow].stops === 1 ? t('stop1') : t('stopN', { n: b.days[tomorrow].stops })}</Text>
                     <ChevronRight size={16} color={C.muted} />
                   </View>
                 </Pressable>
@@ -108,16 +115,17 @@ function Today({ me }: { me: Me }) {
           </View>
         ) : null}
       </ScrollView>
+      {menu ? <MenuSheet onClose={() => setMenu(false)} /> : null}
     </View>
   )
 }
 
 function BatchCard({ batch, day, onPress }: { batch: PartnerBatch; day: DayStats | undefined; onPress: () => void }) {
+  const { t, count } = useT()
   const d = day ?? { stops: 0, meals: 0, done: 0, issues: 0, cash: 0 }
   const allDone = d.stops > 0 && d.done === d.stops
-  const meta = [batch.area?.trim(), batch.time_window ? RUN_LABEL[batch.time_window] ?? batch.time_window : null, batch.role === 'secondary' ? 'Backup' : null]
-    .filter(Boolean)
-    .join(' · ')
+  const run = batch.time_window ? (`run_${batch.time_window}` as Key) : null
+  const meta = [batch.area?.trim(), run ? t(run) : null, batch.role === 'secondary' ? t('backup') : null].filter(Boolean).join(' · ')
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [s.card, pressed && { opacity: 0.85 }]}>
       <View style={s.cardHead}>
@@ -128,14 +136,14 @@ function BatchCard({ batch, day, onPress }: { batch: PartnerBatch; day: DayStats
         <ChevronRight size={20} color={C.faint} />
       </View>
       {d.stops === 0 ? (
-        <Text style={[s.cardMeta, { marginTop: 10 }]}>No deliveries today.</Text>
+        <Text style={[s.cardMeta, { marginTop: 10 }]}>{t('noDeliveriesToday')}</Text>
       ) : (
         <>
           <View style={s.progressRow}>
-            <Text style={s.progressText}>{d.stops} stop{d.stops === 1 ? '' : 's'} · {d.meals} meal{d.meals === 1 ? '' : 's'}</Text>
+            <Text style={s.progressText}>{count('stop1', 'stopN', d.stops)} · {count('meal1', 'mealN', d.meals)}</Text>
             <View style={s.rowEnd}>
               {allDone ? <CheckCircle2 size={16} color={C.green} /> : null}
-              <Text style={allDone ? s.doneText : { color: C.muted }}>{d.done}/{d.stops} done</Text>
+              <Text style={allDone ? s.doneText : { color: C.muted }}>{t('done', { done: d.done, total: d.stops })}</Text>
             </View>
           </View>
           <View style={s.bar}><View style={[s.barFill, { width: `${Math.round((d.done / d.stops) * 100)}%` }]} /></View>
@@ -144,13 +152,13 @@ function BatchCard({ batch, day, onPress }: { batch: PartnerBatch; day: DayStats
               {d.issues > 0 ? (
                 <View style={[s.chip, { backgroundColor: C.redSoft }]}>
                   <AlertTriangle size={13} color={C.redDark} />
-                  <Text style={[s.chipText, { color: C.redDark }]}>{d.issues} problem{d.issues === 1 ? '' : 's'}</Text>
+                  <Text style={[s.chipText, { color: C.redDark }]}>{count('problem1', 'problemN', d.issues)}</Text>
                 </View>
               ) : null}
               {d.cash > 0 ? (
                 <View style={[s.chip, { backgroundColor: C.amberSoft }]}>
                   <Banknote size={13} color={C.amber} />
-                  <Text style={[s.chipText, { color: C.amber }]}>Collect {rupees(d.cash)}</Text>
+                  <Text style={[s.chipText, { color: C.amber }]}>{t('collect', { amount: rupees(d.cash) })}</Text>
                 </View>
               ) : null}
             </View>
@@ -167,7 +175,7 @@ const s = StyleSheet.create({
   empty: { marginTop: 16, padding: 24, textAlign: 'center', color: C.muted, fontSize: 14, backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderStyle: 'dashed', borderColor: C.border, overflow: 'hidden' },
   section: { marginTop: 12, gap: 10 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: C.muted, letterSpacing: 0.5 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: C.muted, letterSpacing: 0.3 },
   card: { backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: C.border, padding: 16 },
   cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   cardTitle: { fontSize: 18, fontWeight: '700', color: C.text },

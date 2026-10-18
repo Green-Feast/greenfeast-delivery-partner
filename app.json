@@ -22,7 +22,10 @@
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
-      ]
+      ],
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "web": {
       "output": "single",
@@ -55,6 +58,13 @@
           "photosPermission": false,
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#1B5E20",
+          "defaultChannel": "deliveries"
+        }
       ]
     ],
     "experiments": {
@@ -66,6 +76,9 @@
         "projectId": "e7820333-d229-4799-a13c-7d29c50acf6d"
       }
     },
-    "owner": "greenfeast"
+    "owner": "greenfeast",
+    "updates": {
+      "url": "https://u.expo.dev/e7820333-d229-4799-a13c-7d29c50acf6d"
+    }
   }
 }

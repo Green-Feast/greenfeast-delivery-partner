@@ -6,17 +6,21 @@ import { Eye, EyeOff } from 'lucide-react-native'
 import { useSession } from '@/lib/session'
 import { C } from '@/lib/ui'
 import { Button } from '@/components/Button'
+import { LanguagePicker } from '@/components/LanguagePicker'
+import { useT, type Key } from '@/lib/i18n'
+import { api } from '@/lib/api'
 
 // Sign in with the phone number and password the office set up
 // (admin → Delivery Partners → App login).
 export default function LoginScreen() {
   const { status, signIn } = useSession()
+  const { t, lang } = useT()
   const insets = useSafeAreaInsets()
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<Key | ''>('')
 
   if (status === 'signed_in') return <Redirect href="/" />
 
@@ -26,16 +30,19 @@ export default function LoginScreen() {
     const err = await signIn(phone, password)
     setBusy(false)
     if (err) setError(err)
+    // The language picked here goes to the account (notifications use it).
+    else api.setLanguage(lang).catch(() => {})
   }
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={[s.page, { paddingTop: insets.top + 48 }]} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[s.page, { paddingTop: insets.top + 16 }]} keyboardShouldPersistTaps="handled">
+        <LanguagePicker compact />
         <Image source={require('../../assets/icon.png')} style={s.logo} />
-        <Text style={s.title}>GreenFeast Partner</Text>
-        <Text style={s.sub}>Sign in with the phone number and password the office gave you.</Text>
+        <Text style={s.title}>{t('appName')}</Text>
+        <Text style={s.sub}>{t('loginSub')}</Text>
 
-        <Text style={s.label}>Phone number</Text>
+        <Text style={s.label}>{t('phone')}</Text>
         <View style={s.field}>
           <Text style={s.prefix}>+91</Text>
           <TextInput
@@ -48,11 +55,11 @@ export default function LoginScreen() {
             textContentType="telephoneNumber"
             maxLength={14}
             style={s.input}
-            accessibilityLabel="Phone number"
+            accessibilityLabel={t('phone')}
           />
         </View>
 
-        <Text style={s.label}>Password</Text>
+        <Text style={s.label}>{t('password')}</Text>
         <View style={s.field}>
           <TextInput
             value={password}
@@ -65,15 +72,15 @@ export default function LoginScreen() {
             style={[s.input, { paddingLeft: 16 }]}
             onSubmitEditing={submit}
             returnKeyType="go"
-            accessibilityLabel="Password"
+            accessibilityLabel={t('password')}
           />
-          <Pressable onPress={() => setShow((v) => !v)} style={s.eye} accessibilityLabel={show ? 'Hide password' : 'Show password'}>
+          <Pressable onPress={() => setShow((v) => !v)} style={s.eye} accessibilityLabel={show ? t('hidePassword') : t('showPassword')}>
             {show ? <EyeOff size={20} color={C.muted} /> : <Eye size={20} color={C.muted} />}
           </Pressable>
         </View>
 
-        {error ? <Text style={s.error}>{error}</Text> : null}
-        <Button label="Sign in" onPress={submit} busy={busy} big style={{ marginTop: 22 }} />
+        {error ? <Text style={s.error}>{t(error)}</Text> : null}
+        <Button label={t('signIn')} onPress={submit} busy={busy} big style={{ marginTop: 22 }} />
       </ScrollView>
     </KeyboardAvoidingView>
   )
@@ -81,7 +88,7 @@ export default function LoginScreen() {
 
 const s = StyleSheet.create({
   page: { paddingHorizontal: 24, paddingBottom: 40, flexGrow: 1, backgroundColor: C.bg },
-  logo: { width: 64, height: 64, borderRadius: 16 },
+  logo: { width: 64, height: 64, borderRadius: 16, marginTop: 20 },
   title: { marginTop: 22, fontSize: 26, fontWeight: '700', color: C.text },
   sub: { marginTop: 6, fontSize: 14, color: C.muted, lineHeight: 20 },
   label: { marginTop: 22, fontSize: 14, fontWeight: '600', color: '#4B5563' },

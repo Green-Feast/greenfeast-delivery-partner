@@ -7,8 +7,8 @@ export function clock(iso: string | null | undefined) {
   return new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })
 }
 
-export function dayLabel(isoDate: string) {
-  return new Date(isoDate + 'T00:00:00Z').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+export function dayLabel(isoDate: string, locale = 'en-IN') {
+  return new Date(isoDate + 'T00:00:00Z').toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
 }
 
 // Calendar-date arithmetic on YYYY-MM-DD, independent of the phone's timezone.
@@ -24,4 +24,3 @@ export function digits10(phone: string) {
 
 // Customers see 12–2 / 5–7 in their app.
 export const SLOT_HOURS = { lunch: '12–2 PM', dinner: '5–7 PM' } as const
-export const RUN_LABEL: Record<string, string> = { morning: 'Morning run', noon: 'Noon run', evening: 'Evening run' }

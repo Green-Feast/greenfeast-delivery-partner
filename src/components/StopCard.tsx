@@ -6,6 +6,7 @@ import { OPEN, type Stop } from '@/lib/api'
 import { clock, digits10, rupees } from '@/lib/format'
 import { navigateUrl } from '@/lib/maps'
 import { C } from '@/lib/ui'
+import { useT } from '@/lib/i18n'
 import { Button } from './Button'
 
 function open(url: string) {
@@ -29,6 +30,7 @@ export function StopCard({
   onMove: (dir: -1 | 1) => void
   onSheet: (kind: 'deliver' | 'problem' | 'cash') => void
 }) {
+  const { t, issue: tIssue } = useT()
   const phone = digits10(s.phone)
   const openItems = s.items.filter((i) => OPEN.includes(i.status))
   const issue = openItems.find((i) => i.issue)?.issue
@@ -39,10 +41,10 @@ export function StopCard({
       <View style={st.top}>
         <View style={st.side}>
           <View style={st.badge}><Text style={st.badgeText}>{n}</Text></View>
-          <Pressable onPress={() => onMove(-1)} disabled={first} hitSlop={6} style={[st.arrow, first && st.faded]} accessibilityLabel="Move up">
+          <Pressable onPress={() => onMove(-1)} disabled={first} hitSlop={6} style={[st.arrow, first && st.faded]} accessibilityLabel={t('moveUp')}>
             <ChevronUp size={20} color={C.faint} />
           </Pressable>
-          <Pressable onPress={() => onMove(1)} disabled={last} hitSlop={6} style={[st.arrow, last && st.faded]} accessibilityLabel="Move down">
+          <Pressable onPress={() => onMove(1)} disabled={last} hitSlop={6} style={[st.arrow, last && st.faded]} accessibilityLabel={t('moveDown')}>
             <ChevronDown size={20} color={C.faint} />
           </Pressable>
         </View>
@@ -74,12 +76,12 @@ export function StopCard({
             })}
           </View>
 
-          {s.note ? <Text style={st.note}>Note: {s.note}</Text> : null}
-          {onTheWay && !issue ? <Text style={st.onTheWay}>On the way · customer has been told</Text> : null}
+          {s.note ? <Text style={st.note}>{t('note', { note: s.note })}</Text> : null}
+          {onTheWay && !issue ? <Text style={st.onTheWay}>{t('onTheWay')}</Text> : null}
           {issue ? (
             <View style={st.issue}>
               <AlertTriangle size={14} color={C.redDark} />
-              <Text style={st.issueText}>Reported: {issue}. The office will decide — you can still mark it delivered.</Text>
+              <Text style={st.issueText}>{t('reported', { issue: tIssue(issue) })}</Text>
             </View>
           ) : null}
 
@@ -87,11 +89,11 @@ export function StopCard({
             <View style={st.cash}>
               <View style={st.cashLeft}>
                 <Banknote size={16} color={C.amber} />
-                <Text style={st.cashText}>{s.cashReport ? `${rupees(s.cashReport.amount)} reported` : `Collect ${rupees(s.codDue)} cash`}</Text>
+                <Text style={st.cashText}>{s.cashReport ? t('cashReported', { amount: rupees(s.cashReport.amount) }) : t('collectCash', { amount: rupees(s.codDue) })}</Text>
               </View>
               {canAct ? (
                 <Pressable onPress={() => onSheet('cash')} style={st.cashBtn}>
-                  <Text style={st.cashBtnText}>{s.cashReport ? 'Change' : 'Cash collected'}</Text>
+                  <Text style={st.cashBtnText}>{s.cashReport ? t('change') : t('cashCollected')}</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -102,22 +104,22 @@ export function StopCard({
       <View style={st.links}>
         <Pressable style={st.link} onPress={() => open(navigateUrl(s))}>
           <Navigation size={16} color={C.green} />
-          <Text style={[st.linkText, { color: C.green }]}>Go</Text>
+          <Text style={[st.linkText, { color: C.green }]}>{t('go')}</Text>
         </Pressable>
         <Pressable style={[st.link, st.linkMid]} onPress={() => phone.length === 10 && open(`tel:+91${phone}`)} disabled={phone.length !== 10}>
           <Phone size={16} color={C.text} />
-          <Text style={st.linkText}>Call</Text>
+          <Text style={st.linkText}>{t('call')}</Text>
         </Pressable>
         <Pressable style={st.link} onPress={() => phone.length === 10 && open(`https://wa.me/91${phone}`)} disabled={phone.length !== 10}>
           <MessageCircle size={16} color={C.text} />
-          <Text style={st.linkText}>WhatsApp</Text>
+          <Text style={st.linkText}>{t('whatsapp')}</Text>
         </Pressable>
       </View>
 
       {canAct && openItems.length > 0 ? (
         <View style={st.actions}>
-          <Button label="Delivered" onPress={() => onSheet('deliver')} icon={<CheckCircle2 size={20} color="#fff" />} big style={{ flex: 1 }} />
-          <Button label="Problem" kind="outlineDanger" onPress={() => onSheet('problem')} icon={<AlertTriangle size={16} color={C.red} />} big />
+          <Button label={t('delivered')} onPress={() => onSheet('deliver')} icon={<CheckCircle2 size={20} color="#fff" />} big style={{ flex: 1 }} />
+          <Button label={t('problem')} kind="outlineDanger" onPress={() => onSheet('problem')} icon={<AlertTriangle size={16} color={C.red} />} big />
         </View>
       ) : null}
     </View>
@@ -126,6 +128,7 @@ export function StopCard({
 
 // A stop that's done: one line with the time (and photo, if any).
 export function DoneRow({ stop: s, canAct, onCash }: { stop: Stop; canAct: boolean; onCash: () => void }) {
+  const { t } = useT()
   const delivered = s.items.find((i) => i.deliveredAt)
   return (
     <View style={st.done}>
@@ -133,16 +136,16 @@ export function DoneRow({ stop: s, canAct, onCash }: { stop: Stop; canAct: boole
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={st.doneName} numberOfLines={1}>{s.name} <Text style={st.doneLabel}>· {s.label}</Text></Text>
         <Text style={st.doneMeta}>
-          {delivered ? `Delivered ${clock(delivered.deliveredAt)}` : 'Not delivering today'}
+          {delivered ? t('deliveredAt', { time: clock(delivered.deliveredAt) }) : t('notToday')}
           {s.items.some((i) => i.hasPhoto) ? ' · 📷' : ''}
         </Text>
       </View>
       {canAct && s.codDue > 0 && !s.cashReport ? (
         <Pressable onPress={onCash} style={st.doneCash}>
-          <Text style={st.doneCashText}>Cash {rupees(s.codDue)}</Text>
+          <Text style={st.doneCashText}>{t('cashBtn', { amount: rupees(s.codDue) })}</Text>
         </Pressable>
       ) : null}
-      {s.cashReport ? <Text style={st.doneReported}>{rupees(s.cashReport.amount)} reported</Text> : null}
+      {s.cashReport ? <Text style={st.doneReported}>{t('cashReported', { amount: rupees(s.cashReport.amount) })}</Text> : null}
     </View>
   )
 }

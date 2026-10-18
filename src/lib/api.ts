@@ -8,7 +8,17 @@ import { supabase } from './supabase'
 
 export type Slot = 'lunch' | 'dinner'
 
-export type Me = { id: string; name: string; phone: string; is_test: boolean; today: string }
+export type Me = { id: string; name: string; phone: string; is_test: boolean; today: string; language: 'en' | 'hi' | 'hinglish' }
+
+export type PartnerNotification = {
+  id: string
+  kind: string
+  title: string
+  body: string
+  data: { batch_id?: string }
+  read: boolean
+  created_at: string
+}
 
 export type DayStats = { stops: number; meals: number; done: number; issues: number; cash: number }
 
@@ -100,6 +110,11 @@ export const api = {
     call<{ amount: number }>('partner_report_cash', { p_order: orderId, p_amount: amountPaise, p_note: note }),
   saveRoute: (batchId: string, addressIds: string[]) =>
     call<{ saved: number }>('partner_save_route', { p_batch: batchId, p_addresses: addressIds }),
+  // Notifications + language (migration 062)
+  setLanguage: (lang: 'en' | 'hi' | 'hinglish') => call<null>('partner_set_language', { p_lang: lang }),
+  setPushToken: (token: string | null) => call<null>('partner_set_push_token', { p_token: token }),
+  notifications: (limit = 50) => call<{ unread: number; items: PartnerNotification[] }>('partner_notifications', { p_limit: limit }),
+  notificationsRead: () => call<null>('partner_notifications_read'),
 }
 
 // The handover photo goes straight to the private delivery-photos bucket,

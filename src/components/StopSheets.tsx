@@ -6,14 +6,11 @@ import { AlertTriangle, Banknote, Camera, CheckCircle2, X } from 'lucide-react-n
 import { api, OPEN, uploadPhoto, type Stop } from '@/lib/api'
 import { rupees } from '@/lib/format'
 import { C, PROBLEM_REASONS } from '@/lib/ui'
+import { REASON_KEYS, useT } from '@/lib/i18n'
 import { Button } from './Button'
 import { Sheet } from './Sheet'
 
 type Done = (ok: boolean, text: string) => void
-
-function message(e: unknown) {
-  return e instanceof Error ? e.message : 'Something went wrong. Try again.'
-}
 
 function ItemList({ stop }: { stop: Stop }) {
   return (
@@ -44,6 +41,7 @@ export function DeliverSheet({ stop, today, onClose, onDone }: { stop: Stop; tod
   const [photo, setPhoto] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const { t, error: tError } = useT()
   const open = stop.items.filter((i) => OPEN.includes(i.status))
 
   async function takePhoto() {
@@ -51,13 +49,13 @@ export function DeliverSheet({ stop, today, onClose, onDone }: { stop: Stop; tod
     try {
       if (Platform.OS !== 'web') {
         const perm = await ImagePicker.requestCameraPermissionsAsync()
-        if (!perm.granted) return setError('Allow camera access in Settings to add a photo.')
+        if (!perm.granted) return setError(t('cameraDenied'))
       }
       const res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 })
       if (res.canceled || !res.assets?.[0]) return
       setPhoto(await shrink(res.assets[0]))
     } catch (e) {
-      setError(message(e))
+      setError(tError(e))
     }
   }
 
@@ -68,66 +66,67 @@ export function DeliverSheet({ stop, today, onClose, onDone }: { stop: Stop; tod
       const path = photo ? await uploadPhoto(open[0].orderId, photo, today) : null
       const r = await api.markDelivered(open.map((i) => i.orderId), path)
       if (r.short > 0) {
-        onDone(false, "The customer's wallet is short — this meal was NOT billed and they've been told. Call the office before handing it over.")
+        onDone(false, t('walletShort'))
       } else {
-        onDone(true, `${stop.name} — delivered ✓`)
+        onDone(true, t('deliveredToast', { name: stop.name }))
       }
       onClose()
     } catch (e) {
-      setError(message(e))
+      setError(tError(e))
       setBusy(false)
     }
   }
 
   return (
-    <Sheet title={`Hand over to ${stop.name}?`} onClose={onClose}>
+    <Sheet title={t('handOver', { name: stop.name })} onClose={onClose}>
       <ItemList stop={stop} />
       {stop.codDue > 0 && !stop.cashReport ? (
-        <Text style={st.remind}>Remember to collect {rupees(stop.codDue)} cash.</Text>
+        <Text style={st.remind}>{t('remindCash', { amount: rupees(stop.codDue) })}</Text>
       ) : null}
 
       <Pressable onPress={takePhoto} style={st.photoBtn}>
         <Camera size={20} color={C.muted} />
-        <Text style={st.photoText}>{photo ? 'Retake photo' : 'Add photo (optional)'}</Text>
+        <Text style={st.photoText}>{photo ? t('retakePhoto') : t('addPhoto')}</Text>
       </Pressable>
       {photo ? (
         <View style={st.previewWrap}>
           <Image source={{ uri: photo }} style={st.preview} resizeMode="cover" />
-          <Pressable onPress={() => setPhoto(null)} style={st.remove} accessibilityLabel="Remove photo">
+          <Pressable onPress={() => setPhoto(null)} style={st.remove} accessibilityLabel={t('removePhoto')}>
             <X size={16} color="#fff" />
           </Pressable>
         </View>
       ) : null}
 
       {error ? <Text style={st.error}>{error}</Text> : null}
-      <Button label="Mark delivered" onPress={confirmDelivered} busy={busy} big icon={<CheckCircle2 size={20} color="#fff" />} style={{ marginTop: 18 }} />
+      <Button label={t('markDelivered')} onPress={confirmDelivered} busy={busy} big icon={<CheckCircle2 size={20} color="#fff" />} style={{ marginTop: 18 }} />
     </Sheet>
   )
 }
 
 export function ProblemSheet({ stop, onClose, onDone }: { stop: Stop; onClose: () => void; onDone: Done }) {
+  const { t, error: tError } = useT()
   const [reason, setReason] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   async function send() {
-    if (!reason) return setError('Pick a reason.')
+    if (!reason) return setError(t('pickReason'))
     setBusy(true)
     setError('')
     try {
       await api.reportProblem(stop.items.filter((i) => OPEN.includes(i.status)).map((i) => i.orderId), reason, note)
-      onDone(true, 'Reported — the office will sort it out. You can still mark it delivered later.')
+      onDone(true, t('reportedToast'))
       onClose()
     } catch (e) {
-      setError(message(e))
+      setError(tError(e))
       setBusy(false)
     }
   }
 
   return (
-    <Sheet title={`Couldn't deliver to ${stop.name}?`} onClose={onClose}>
-      <Text style={st.help}>Call the customer first. If it still can&apos;t be handed over, tell the office why — the meal isn&apos;t charged until they decide.</Text>
+    <Sheet title={t('couldntDeliver', { name: stop.name })} onClose={onClose}>
+      <Text style={st.help}>{t('problemHelp')}</Text>
       <View style={st.reasons}>
         {PROBLEM_REASONS.map((r) => (
           <Pressable
@@ -136,28 +135,30 @@ export function ProblemSheet({ stop, onClose, onDone }: { stop: Stop; onClose: (
             style={[st.reason, reason === r && st.reasonOn]}
             accessibilityRole="radio"
             accessibilityLabel={r}
+            accessibilityHint={t(REASON_KEYS[r])}
             accessibilityState={{ checked: reason === r }}
           >
-            <Text style={[st.reasonText, reason === r && { color: C.redDark }]}>{r}</Text>
+            <Text style={[st.reasonText, reason === r && { color: C.redDark }]}>{t(REASON_KEYS[r])}</Text>
           </Pressable>
         ))}
       </View>
       <TextInput
         value={note}
         onChangeText={setNote}
-        placeholder="Anything else? (optional)"
+        placeholder={t('anythingElse')}
         placeholderTextColor={C.faint}
         maxLength={200}
         multiline
         style={[st.input, { minHeight: 64, textAlignVertical: 'top' }]}
       />
       {error ? <Text style={st.error}>{error}</Text> : null}
-      <Button label="Report to office" kind="danger" onPress={send} busy={busy} big icon={<AlertTriangle size={20} color="#fff" />} style={{ marginTop: 14 }} />
+      <Button label={t('reportToOffice')} kind="danger" onPress={send} busy={busy} big icon={<AlertTriangle size={20} color="#fff" />} style={{ marginTop: 14 }} />
     </Sheet>
   )
 }
 
 export function CashSheet({ stop, onClose, onDone }: { stop: Stop; onClose: () => void; onDone: Done }) {
+  const { t, error: tError } = useT()
   const [amount, setAmount] = useState(String((stop.cashReport?.amount ?? stop.codDue) / 100))
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
@@ -165,24 +166,22 @@ export function CashSheet({ stop, onClose, onDone }: { stop: Stop; onClose: () =
 
   async function send() {
     const paise = Math.round((parseFloat(amount) || 0) * 100)
-    if (paise <= 0) return setError('Enter the amount you collected.')
+    if (paise <= 0) return setError(t('enterAmount'))
     setBusy(true)
     setError('')
     try {
       await api.reportCash(stop.items[0].orderId, paise, note)
-      onDone(true, `${rupees(paise)} reported — hand it to the office.`)
+      onDone(true, t('cashToast', { amount: rupees(paise) }))
       onClose()
     } catch (e) {
-      setError(message(e))
+      setError(tError(e))
       setBusy(false)
     }
   }
 
   return (
-    <Sheet title={`Cash from ${stop.name}`} onClose={onClose}>
-      <Text style={st.help}>
-        Due: <Text style={{ fontWeight: '700' }}>{rupees(stop.codDue)}</Text>. Enter what you actually collected — the office records it when you hand the cash over.
-      </Text>
+    <Sheet title={t('cashFrom', { name: stop.name })} onClose={onClose}>
+      <Text style={st.help}>{t('cashHelp', { amount: rupees(stop.codDue) })}</Text>
       <View style={st.amountRow}>
         <Text style={st.rupee}>₹</Text>
         <TextInput
@@ -190,19 +189,19 @@ export function CashSheet({ stop, onClose, onDone }: { stop: Stop; onClose: () =
           onChangeText={(t) => setAmount(t.replace(/[^\d.]/g, ''))}
           keyboardType="decimal-pad"
           style={st.amount}
-          accessibilityLabel="Amount collected"
+          accessibilityLabel={t('amountCollected')}
         />
       </View>
       <TextInput
         value={note}
         onChangeText={setNote}
-        placeholder="Note (optional) — e.g. paid part, rest tomorrow"
+        placeholder={t('cashNote')}
         placeholderTextColor={C.faint}
         maxLength={200}
         style={st.input}
       />
       {error ? <Text style={st.error}>{error}</Text> : null}
-      <Button label="Report cash collected" kind="cash" onPress={send} busy={busy} big icon={<Banknote size={20} color="#fff" />} style={{ marginTop: 14 }} />
+      <Button label={t('reportCash')} kind="cash" onPress={send} busy={busy} big icon={<Banknote size={20} color="#fff" />} style={{ marginTop: 14 }} />
     </Sheet>
   )
 }
