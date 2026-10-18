@@ -25,7 +25,9 @@
       ],
       "runtimeVersion": {
         "policy": "appVersion"
-      }
+      },
+      "googleServicesFile": "./google-services.json",
+      "versionCode": 2
     },
     "web": {
       "output": "single",
